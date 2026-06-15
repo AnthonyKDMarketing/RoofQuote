@@ -1,0 +1,157 @@
+// This is your Prisma schema file for RoofQuote
+// Completely separate from GroundQuote
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  passwordHash   String
+  name           String?
+  role           String       @default("ADMIN") // ADMIN, EDITOR, VIEWER
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Organization {
+  id             String  @id @default(uuid())
+  slug           String  @unique
+  name           String  @default("My Roofing Company")
+  website        String?
+  primaryColor   String  @default("#1e3a5f")
+  secondaryColor String  @default("#ffffff")
+  accentColor    String  @default("#e85d04")
+  logoUrl        String?
+  font           String? @default("Inter")
+
+  users   User[]
+  leads   Lead[]
+  pricing RoofPricing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Notifications
+  adminEmail         String?
+  adminPhone         String?
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  webhookUrl         String?
+
+  // Hosted Page
+  hostedPageEnabled    Boolean @default(false)
+  hostedPageHeadline   String?
+  hostedPageSubheading String?
+  hostedPagePhone      String?
+  hostedPageEmail      String?
+  hostedPageCity       String?
+  hostedPageState      String?
+  hostedPageCoverUrl   String?
+
+  // SaaS Billing (Stripe)
+  subscriptionStatus    String    @default("trialing")
+  subscriptionExpiresAt DateTime?
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  planType              String    @default("FLAT_RATE") // FLAT_RATE or PAY_PER_LEAD
+  termsAcceptedAt       DateTime?
+
+  tutorialCompleted Boolean @default(false)
+}
+
+model RoofPricing {
+  id             Int          @id @default(autoincrement())
+  name           String       @default("default")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Materials JSON: Array of { id, name, description, pricePerSquare, laborMultiplier, lifespan, isActive }
+  materials Json @default("[]")
+
+  // Options JSON: Array of { id, name, description, pricingType (flat|per_square|per_sqft), value, isActive }
+  options Json @default("[]")
+
+  // Global Settings
+  minimumJobValue  Int   @default(1500)
+  priceRangeBuffer Float @default(0.15) // ±15% range display
+
+  // Waste factors by complexity
+  wasteFactor Json @default("{\"simple\": 0.10, \"moderate\": 0.15, \"complex\": 0.20}")
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, organizationId])
+}
+
+model Lead {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // Contact
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  // Property
+  address   String
+  latitude  Float?
+  longitude Float?
+
+  // Roof Measurements (from Solar API or manual)
+  measurementSource  String?  @default("solar_api") // solar_api | manual
+  roofSquares        Float?   // Total squares WITH waste factor applied
+  roofAreaSqFt       Float?   // Net roof area (no waste)
+  roofPitchDegrees   Float?   // Average pitch in degrees
+  roofComplexity     String?  // simple | moderate | complex
+  roofSegmentCount   Int?
+  roofDataJson       Json?    // Full Solar API roofSegmentStats response
+
+  // Manual fallback fields
+  manualHomeSqFt     Float?
+  manualRoofType     String?  // gable | hip | flat | complex
+  manualStories      Int?
+
+  // Selections
+  selectedMaterial   String?  // Material name
+  selectedOptions    Json?    // Array of selected option IDs
+
+  // Estimate
+  estimatedPriceMin Int?
+  estimatedPriceMax Int?
+
+  // Lead Metadata
+  intent       String  @default("browsing") // browsing | quote_request | site_visit
+  status       String  @default("new")      // new | contacted | qualified | closed | lost
+  source       String?
+  notes        String?
+  billedAmount Int     @default(0)
+  isDuplicate  Boolean @default(false)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}

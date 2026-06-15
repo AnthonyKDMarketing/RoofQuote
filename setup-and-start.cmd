@@ -1,0 +1,6 @@
+@ECHO OFF
+echo Pushing Prisma schema to database...
+node node_modules\prisma\build\index.js db push --accept-data-loss
+echo.
+echo Done! Starting dev server...
+node node_modules\next\dist\bin\next dev -p 3002
